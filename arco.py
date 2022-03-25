@@ -1,5 +1,7 @@
 # -*- coding: euc-kr -*-
 from re import X
+from PIL import Image, ImageChops
+from datetime import  datetime
 import requests
 import time
 import pyautogui
@@ -8,25 +10,25 @@ import os
 import cv2
 import subprocess
 import openpyxl
-from PIL import Image, ImageChops
 import pytesseract
+import numpy as np
+import sys
 
-
-num = 0         #±âº»ÀûÀÎ º¯¼öµé ¼±¾ğ
+num = 0         #ê¸°ë³¸ì ì¸ ë³€ìˆ˜ë“¤ ì„ ì–¸
 num1 = 0
 a = 0
 b = 0
+uniq = 1
 file_list = []
 copy_result = None
 copy_result_url = None
+directory = ['jpg','jpg_crop','error','txt']
+today = datetime.now()
+today_date = today.strftime("%y.%m.%d")
+#today_date = "22.03.21"
+print(today_date)
+today_path = r'C:\py\venv'+ '\\' + today_date
 
-adr = r'C:\py\venv\eml_2022.01.05' # eml ÆÄÀÏ ÁÖ¼Ò
-adr_jpg = r'C:\py\venv\jpg_2022.01.05' # jpg ÀúÀåÆÄÀÏÁÖ¼Ò
-adr_jpg_crop = r'C:\py\venv\jpg_crop_2022.01.05' # jpg_crop ÀúÀåÆÄÀÏÁÖ¼Ò
-adr_txt = r'C:\py\venv\txt_2022.01.05' # txt ÀúÀåÁÖ¼Ò
-
-wb = openpyxl.Workbook() # ¿¢¼¿ »õÆÄÀÏ ¸¸µé±â
-wb.save('test.xlsx')    #¿¢¼¿ ÆÄÀÏ ÀúÀå
 
 def download(url, file_name=None):
     if not file_name:
@@ -38,7 +40,7 @@ def download(url, file_name=None):
     file.close()
     time.sleep(0.5)
 
-def copy_jpg() : # url ÃßÃâÇÏ´Â ÇÔ¼ö
+def copy_jpg() : # url ì¶”ì¶œí•˜ëŠ” í•¨ìˆ˜
     time.sleep(0.1)
     pyautogui.click(x=-1295, y=371)
     pyautogui.hotkey('ctrl', 'u')
@@ -49,10 +51,10 @@ def copy_jpg() : # url ÃßÃâÇÏ´Â ÇÔ¼ö
     pyautogui.hotkey('ctrl', 'c')
     time.sleep(0.1)
 
-def open_file_eml(address) : # addressÀÇ ÆÄÀÏÀ» ½ÇÇà
+def open_file_eml(address) : # addressì˜ íŒŒì¼ì„ ì‹¤í–‰
     subprocess.run(address, shell=True)
 
-def file_list_ext(address,ext) : # ÆÄÀÏ (address)¿¡¼­ emlÈ®ÀåÀÚ ÆÄÀÏ file_list¿¡ ¸®½ºÆ® Ãß°¡
+def file_list_ext(address,ext) : # íŒŒì¼ (address)ì—ì„œ emlí™•ì¥ì íŒŒì¼ file_listì— ë¦¬ìŠ¤íŠ¸ ì¶”ê°€
     file_list.clear()
     file = os.listdir(address)
     for x in file :
@@ -68,13 +70,15 @@ def kor_split (str) :
             kor_name = kor_name + str[i]
     return kor_name
 
-def ocr(file_list) :  # tesseract ocr ÀÛµ¿ ÇÔ¼ö (file_list´Â ocr ÇÒ ÆÄÀÏ)
-    file_txt = adr_txt + '\\'  + file_list[:-3] + 'txt' # ocrÇÑÈÄ txt ÆÄÀÏ ÀúÀå ÀÌ¸§
-    file_path1 = adr_jpg_crop + '\\' + file_list # ocrÇÒ ÆÄÀÏ ÀÌ¸§
+def ocr(file_list,input_path,output_path) :  # tesseract ocr ì‘ë™ í•¨ìˆ˜ (file_listëŠ” ocr í•  íŒŒì¼)
+    file_txt = output_path + '\\'  + file_list[:-3] + 'txt' # ocrí•œí›„ txt íŒŒì¼ ì €ì¥ ì´ë¦„
+    file_path1 = input_path + '\\' + file_list # ocrí•  íŒŒì¼ ì´ë¦„
+    config = '-l kor+eng --oem 3 --psm 11'
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-    text = pytesseract.image_to_string(Image.open(file_path1))
-    with open(file_txt,"w",encoding="utf8") as file : #ocrÀÌÈÄ txt ÀúÀåÇÒ ÆÄÀÏ ¿­°í ÀúÀå
+    text = pytesseract.image_to_string(Image.open(file_path1),config=config)
+    with open(file_txt,"w",encoding="utf8") as file : #ocrì´í›„ txt ì €ì¥í•  íŒŒì¼ ì—´ê³  ì €ì¥
         file.write(text)
+    print(file_txt)
 
 def image_preprocessing(file_list) :
     for x in file_list :
@@ -83,8 +87,8 @@ def image_preprocessing(file_list) :
         print(file_path)
         print(file_save_path)
         src = cv2.imread(file_path)
-        dst1 = cv2.inRange(src, (250,250,250), (255,255,255))   # ÈòºÎºĞ Á¦¿ÜÇÑ ºÎºĞÀº °ËÀº»öÀ¸·Î Ã³¸®
-        cv2.imwrite(file_save_path,dst1)                        # °ËÀº»öÀ¸·Î Ã³¸®ÇÑ ºÎºĞ ÀúÀå
+        dst1 = cv2.inRange(src, (240,240,240), (255,255,255))   # í°ë¶€ë¶„ ì œì™¸í•œ ë¶€ë¶„ì€ ê²€ì€ìƒ‰ìœ¼ë¡œ ì²˜ë¦¬
+        cv2.imwrite(file_save_path,dst1)                        # ê²€ì€ìƒ‰ìœ¼ë¡œ ì²˜ë¦¬í•œ ë¶€ë¶„ ì €ì¥
         img = Image.open(file_save_path)
         img_size = img.size
         img_size_left = img_size[0]
@@ -115,57 +119,119 @@ def png_to_jpg(file_list) :
         im.save(file_jpg_path, 'jpeg')
         os.remove(file_png_path)
 
+def erosion_dilation(file_list,input_path,output_path): #í™•ì¥ì ë¬´ì‹œí•˜ê³  íŒŒì¼ëª…ë§Œ ë”°ì„œ í•˜ëŠ” í•¨ìˆ˜, í™•ì¥ì ìƒê´€ì—†ìŒ
+    filename_input = input_path + '\\' + file_list[:-3] + 'jpg'
+    filename_output = output_path + '\\' + file_list[:-3] + 'jpg'
+    image = cv2.imread(filename_input, cv2.IMREAD_GRAYSCALE)  #// íšŒìƒ‰ì¡°ë¡œ ì´ë¯¸ì§€ ê°ì²´ë¥¼ ìƒì„œí•œë‹¤.
 
-file_list_ext(adr,'eml') # ÆÄÀÏ À§Ä¡¿¡¼­ emlÆÄÀÏ ¸®½ºÆ®
+    #// make kernel matrix for dilation and erosion (Use Numpy)
+    kernel_size_row = 3
+    kernel_size_col = 3
+    kernel = np.ones((3, 3), np.uint8)
 
-wb = openpyxl.load_workbook('test.xlsx')
+    erosion_image = cv2.erode(image, kernel, iterations=1)  #// make erosion image
+    cv2.imwrite(filename_output,erosion_image)
+
+
+if os.path.isdir(today_path) == False :
+    print('í´ë”ê°€ ì—†ìŠµë‹ˆë‹¤. ìƒì„±í•©ë‹ˆë‹¤.')
+    os.mkdir(today_path)
+    sys.exit()
+else :
+    directory_eml_path = today_path + '\\' + 'eml_' + today_date
+    if os.path.isdir(directory_eml_path) == True :
+        file_list_ext(directory_eml_path, 'eml')
+        if len(file_list) > 0 :
+            for x in directory :
+                directory_path = today_path + '\\' + x + '_' + today_date
+                if os.path.isdir(directory_path) == False :
+                        os.mkdir(directory_path)
+                        print('{} ê°€ ìƒì„±ë˜ì—ˆìŠµë‹ˆë‹¤.'.format(directory_path))
+        else :
+            print("emlíŒŒì¼ì„ eml_{} í´ë”ì— ë„£ìœ¼ì„¸ìš”".format(today_date))
+            sys.exit()
+    else :
+        print("eml_{} í´ë”ê°€ ì—†ìŠµë‹ˆë‹¤. eml íŒŒì¼ì„ ìƒì„±ëœ í´ë”ì— ë„£ìœ¼ì„¸ìš”.".format(today_date))
+        os.mkdir(directory_eml_path)
+        sys.exit()
+
+adr_eml = today_path + '\\' + 'eml_' + today_date # eml íŒŒì¼ ì£¼ì†Œ
+adr_jpg = today_path + '\\' + 'jpg_' + today_date # jpg ì €ì¥íŒŒì¼ì£¼ì†Œ
+adr_jpg_crop = today_path + '\\' + 'jpg_crop_' + today_date # jpg_crop ì €ì¥íŒŒì¼ì£¼ì†Œ
+adr_ocr_error = today_path + '\\' + 'error_' + today_date#ì˜¤ë¥˜ ë°ì´í„° ì €ì¥ìœ„ì¹˜
+adr_txt = today_path + '\\' + 'txt_' + today_date # txt ì €ì¥ì£¼ì†Œ
+
+wb = openpyxl.Workbook() # ì—‘ì…€ ìƒˆíŒŒì¼ ë§Œë“¤ê¸°
+wb.save('arco_{}.xlsx'.format(today_date))    #ì—‘ì…€ íŒŒì¼ ì €ì¥
+
+wb = openpyxl.load_workbook('arco_{}.xlsx'.format(today_date))
 sheet = wb.active
 
-for file_eml in file_list :                     # eml¿¡¼­ jpg,pngÆÄÀÏ ´Ù¿î·Îµå
-    file_address_eml = adr + '\\' + file_eml
+file_list_ext(adr_eml,'eml')
+for file_eml in file_list :                     # emlì—ì„œ jpg,pngíŒŒì¼ ë‹¤ìš´ë¡œë“œ
+    file_address_eml = adr_eml + '\\' + file_eml
     b=b+1
     open_file_eml(file_address_eml)
     copy_jpg()
     copy_result = clipboard.paste()
-    copy_result_url = copy_result.split('\'') # ' ÀÛÀºµûÀ½Ç¥ ±âÁØÀ¸·Î ³ª´®
+    copy_result_url = copy_result.split('\'') # ' ì‘ì€ë”°ìŒí‘œ ê¸°ì¤€ìœ¼ë¡œ ë‚˜ëˆ”
     file_name = copy_result_url[1].split('/')[-1]
     name_split = copy_result_url[0]
     name = kor_split(name_split)
+    file_path = adr_jpg + '\\' + file_name
+    while os.path.exists(file_path) :
+        file_name = file_name[0:-4] + '(%d)'%uniq + file_name[-4:]
+        uniq +=1
+        break
     print(name)
     print(file_name)
-    download(copy_result_url[1])
+    download(copy_result_url[1],file_name)
     pyautogui.hotkey('ctrl', 'w')
     pyautogui.hotkey('ctrl', 'w')
     sheet.cell(row=b, column=1).value = name
     sheet.cell(row=b, column=2).value = file_name
     copy_result_url.clear()
 
-wb.save('test.xlsx')
+wb.save('arco_{}.xlsx'.format(today_date))    # jpg,png ì¶”ì¶œ ì™„ë£Œ
 
-# jpg,png ÃßÃâ ¿Ï·á
+
+
 file_list_ext(adr_jpg,'png')
-png_to_jpg(file_list)           #png ÆÄÀÏ jpg·Î º¯È¯
+png_to_jpg(file_list)           #png íŒŒì¼ jpgë¡œ ë³€í™˜
 
 file_list_ext(adr_jpg,'jpg')
-print(file_list)
 image_preprocessing(file_list)
-file_list_ext(adr_jpg_crop,'jpg')
-print(file_list)
+
+
+file_list_ext(adr_jpg_crop,'jpg') # crop í•œ jpgë¥¼ txtë¡œ ocr
 for x in file_list :
-    ocr(x)
+    ocr(x,adr_jpg_crop,adr_txt)
+
 file_list_ext(adr_txt,'txt')
-print(file_list)
-wb = openpyxl.load_workbook('test.xlsx')
+for x in file_list :
+    file_txt_path = adr_txt + '\\' + x
+    with open(file_txt_path,'r',encoding='utf8') as f:
+        txt_firstline = f.readline()
+        if txt_firstline.find('.') == -1  :
+            erosion_dilation(x,adr_jpg_crop,adr_ocr_error)
+
+file_list_ext(adr_ocr_error,'jpg')
+for x in file_list :
+    ocr(x,adr_ocr_error,adr_txt)
+
+file_list_ext(adr_txt,'txt')
+wb = openpyxl.load_workbook('arco_{}.xlsx'.format(today_date))
 sheet = wb.active
 for x in file_list:
     file_txt_path = adr_txt + '\\' + x
     a = a + 1
-    print(file_txt_path)
     with open(file_txt_path, 'r', encoding='utf8') as f:
         line = f.readline()
+        if not line :
+            line = 'none'
         sheet.cell(row=a, column=3).value = x[:-4]
         sheet.cell(row=a, column=4).value = line
 
-wb.save('test.xlsx')
+wb.save('arco_{}.xlsx'.format(today_date))
 
 print('finish')
